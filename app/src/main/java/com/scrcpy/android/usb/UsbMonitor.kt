@@ -86,7 +86,13 @@ object UsbMonitor {
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> {
                     val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
                     AppLog.i("Usb", "USB device detached: ${device?.let(::deviceName)}")
+                    val previous = _state.value
                     refresh(ctx)
+                    if (previous is UsbState.Granted &&
+                        (device == null || previous.device.deviceId == device.deviceId)
+                    ) {
+                        com.scrcpy.android.mirror.MirrorController.onUsbDisconnected()
+                    }
                 }
             }
         }

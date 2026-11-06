@@ -29,6 +29,11 @@ class AudioDecoder(
     private var running = true
     private var thread: Thread? = null
 
+    // MediaCodec decode path for opus/aac/flac: persistent decoder + AudioTrack.
+    private var mediaCodec: MediaCodec? = null
+    private var audioTrack: AudioTrack? = null
+    private var sampleRate = -1
+
     fun start() {
         thread = Thread({ run() }, "scrcpy-audio").apply { isDaemon = true; start() }
     }
@@ -132,11 +137,6 @@ class AudioDecoder(
         }
     }
 
-    // MediaCodec decode path for opus/aac/flac; one persistent decoder + AudioTrack.
-    private var mediaCodec: MediaCodec? = null
-    private var audioTrack: AudioTrack? = null
-    private var sampleRate = -1
-
     private fun playWithMediaCodec(csd: ByteArray, frame: ByteArray) {
         if (mediaCodec == null) {
             // Build decoder + track from csd packet info
@@ -154,7 +154,7 @@ class AudioDecoder(
             mediaCodec = decoder
 
             val minBuf = AudioTrack.getMinBufferSize(
-                rate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_FLOAT
+                rate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT
             ).coerceAtLeast(32 * 1024)
             val track = AudioTrack.Builder()
                 .setAudioAttributes(
@@ -166,7 +166,7 @@ class AudioDecoder(
                 .setAudioFormat(
                     AudioFormat.Builder()
                         .setSampleRate(rate)
-                        .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                         .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
                         .build()
                 )
@@ -205,13 +205,13 @@ class AudioDecoder(
                 audioTrack?.release()
                 val ch = fmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
                 val minBuf = AudioTrack.getMinBufferSize(
-                    sampleRate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_FLOAT
+                    sampleRate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT
                 ).coerceAtLeast(32 * 1024)
                 val track = AudioTrack.Builder()
                     .setAudioFormat(
                         AudioFormat.Builder()
                             .setSampleRate(sampleRate)
-                            .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                             .setChannelMask(if (ch == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO)
                             .build()
                     )

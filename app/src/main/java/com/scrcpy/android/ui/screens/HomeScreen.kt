@@ -120,9 +120,7 @@ fun HomeScreen(
                 }
                 else -> {
                     Button(
-                        onClick = {
-                            MirrorController.startConnection(false, "")
-                        },
+                        onClick = { MirrorController.startConnection() },
                         colors = ButtonDefaults.buttonColors(containerColor = Accent)
                     ) {
                         Text("Connect")

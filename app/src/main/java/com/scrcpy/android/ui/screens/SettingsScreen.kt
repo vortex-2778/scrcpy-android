@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
@@ -23,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.scrcpy.android.App
 import com.scrcpy.android.data.AudioCodec
+import com.scrcpy.android.data.DisplayMode
+import com.scrcpy.android.data.ThemeStyle
 import com.scrcpy.android.data.VideoCodec
 import com.scrcpy.android.ui.theme.TextSecondary
 
@@ -34,10 +37,14 @@ fun SettingsScreen(onBack: () -> Unit) {
     var audioEnabled by remember { mutableStateOf(settings.audioEnabled) }
     var audioCodecState by remember { mutableStateOf(settings.audioCodec) }
     var bitrateMbps by remember { mutableIntStateOf(settings.videoBitRate / 1_000_000) }
+    var maxFps by remember { mutableIntStateOf(settings.maxFps) }
     var maxSize by remember { mutableIntStateOf(settings.maxSize) }
+    var displayMode by remember { mutableStateOf(settings.displayMode) }
+    var desktopRes by remember { mutableStateOf(settings.desktopRes) }
     var turnScreenOff by remember { mutableStateOf(settings.turnScreenOff) }
     var stayAwake by remember { mutableStateOf(settings.stayAwake) }
     var powerOffOnClose by remember { mutableStateOf(settings.powerOffOnClose) }
+    var themeStyle by remember { mutableStateOf(settings.themeStyle) }
 
     Column(
         modifier = Modifier
@@ -52,6 +59,27 @@ fun SettingsScreen(onBack: () -> Unit) {
             style = MaterialTheme.typography.bodySmall,
             color = TextSecondary
         )
+
+        Group("Display mode")
+        ChoiceRow(
+            label = "Mode",
+            options = DisplayMode.entries.map { it.name.lowercase() },
+            selected = displayMode.name.lowercase()
+        ) { pick ->
+            val m = DisplayMode.valueOf(pick.uppercase())
+            settings.displayMode = m
+            displayMode = m
+        }
+        if (displayMode != DisplayMode.MIRROR) {
+            ChoiceRow(
+                label = "Desktop size",
+                options = listOf("1280x720/160", "1920x1080/160", "2560x1440/200"),
+                selected = desktopRes
+            ) { pick ->
+                settings.desktopRes = pick
+                desktopRes = pick
+            }
+        }
 
         Group("Video")
         ChoiceRow(
@@ -71,6 +99,15 @@ fun SettingsScreen(onBack: () -> Unit) {
             val v = if (pick == "native") 0 else pick.toInt()
             settings.maxSize = v
             maxSize = v
+        }
+        ChoiceRow(
+            label = "Max FPS",
+            options = listOf("0", "30", "60", "90", "120"),
+            selected = maxFps.toString()
+        ) { pick ->
+            val v = pick.toInt()
+            settings.maxFps = v
+            maxFps = v
         }
         Text("Bitrate: ${bitrateMbps} Mbps", style = MaterialTheme.typography.bodyMedium)
         Slider(
@@ -130,6 +167,17 @@ fun SettingsScreen(onBack: () -> Unit) {
             settings.powerOffOnClose = powerOffOnClose
         }
 
+        Group("Appearance")
+        ChoiceRow(
+            label = "Theme",
+            options = ThemeStyle.entries.map { it.name.lowercase() },
+            selected = themeStyle.name.lowercase()
+        ) { pick ->
+            val style = ThemeStyle.valueOf(pick.uppercase())
+            settings.themeStyle = style
+            themeStyle = style
+        }
+
         Button(onClick = onBack) { Text("Back") }
     }
 }
@@ -153,11 +201,11 @@ private fun ChoiceRow(
                 OutlinedButton(
                     onClick = { onPick(option) },
                     colors = if (option == selected) {
-                        androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        ButtonDefaults.outlinedButtonColors(
                             containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                         )
                     } else {
-                        androidx.compose.material3.ButtonDefaults.outlinedButtonColors()
+                        ButtonDefaults.outlinedButtonColors()
                     }
                 ) {
                     Text(option)

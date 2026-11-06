@@ -6,6 +6,7 @@ import android.hardware.usb.UsbManager
 import com.scrcpy.android.AdbKeys
 import com.scrcpy.android.App
 import com.scrcpy.android.adb.UsbTransport
+import com.scrcpy.android.data.DisplayMode
 import com.scrcpy.android.scrcpy.MirrorControllerBridge
 import com.scrcpy.android.scrcpy.ScrcpySession
 import com.scrcpy.android.scrcpy.ServerArgs
@@ -64,8 +65,11 @@ object MirrorController {
         }
     }
 
-    fun startConnection(desktopMode: Boolean, desktopRes: String) {
+    fun startConnection() {
         if (_state.value is State.Connecting) return
+        val settings = App.singleton.settings
+        val mode = settings.displayMode
+        val desktopRes = settings.desktopRes
         val run = runnableDevice() ?: run {
             _state.value = State.Failed("No phone with an ADB interface; plug in the USB cable")
             return
@@ -82,26 +86,53 @@ object MirrorController {
         _state.value = State.Connecting("Opening USB transport…")
 
         Thread({
-            try {
+            fun openSession(desktop: Boolean): ScrcpySession {
                 val connection = run.manager.openDevice(run.device)
                     ?: throw IllegalStateException("openDevice returned null")
                 val transport = UsbTransport.open(run.device, connection)
-                // The session owns the whole ADB stack lifecycle.
-                val newSession = ScrcpySession(
-                    run.device, connection, transport,
-                    App.singleton.settings,
-                    ServerArgs.randomScid(),
-                    desktopMode, desktopRes
-                ) { event ->
-                    when {
-                        event == "SERVER_EXITED" -> {
-                            AppLog.e(TAG, "server process terminated")
-                            disconnect()
-                            _state.value =
-                                State.Failed("Mirroring ended: the phone closed the connection")
+                return try {
+                    ScrcpySession(
+                        run.device, connection, transport,
+                        App.singleton.settings,
+                        ServerArgs.randomScid(),
+                        desktop, desktopRes
+                    ) { event ->
+                        when {
+                            event == "SERVER_EXITED" -> {
+                                AppLog.e(TAG, "server process terminated")
+                                disconnect()
+                                _state.value =
+                                    State.Failed("Mirroring ended: the phone closed the connection")
+                            }
+                            _state.value is State.Connecting ->
+                                _state.value = State.Connecting(event)
                         }
-                        _state.value is State.Connecting ->
-                            _state.value = State.Connecting(event)
+                    }
+                } catch (t: Throwable) {
+                    runCatching { transport.close() }
+                    throw t
+                }
+            }
+
+            try {
+                val newSession = when (mode) {
+                    DisplayMode.MIRROR -> openSession(false)
+                    DisplayMode.DESKTOP -> openSession(true)
+                    DisplayMode.AUTO -> {
+                        try {
+                            openSession(true)
+                        } catch (t: Throwable) {
+                            val msg = t.message ?: ""
+                            if (msg.contains("localabstract", true) ||
+                                msg.contains("not supported", true)
+                            ) {
+                                AppLog.w(TAG, "desktop mode unavailable, falling back to mirror")
+                                _state.value = State.Connecting("Desktop unsupported; mirroring…")
+                                openSession(false)
+                            } else {
+                                throw t
+                            }
+                        }
                     }
                 }
                 session = newSession
@@ -135,6 +166,14 @@ object MirrorController {
 
     fun clearError() {
         if (_state.value is State.Failed) _state.value = State.Idle
+    }
+
+    /** Called by UsbMonitor when the phone is physically unplugged. */
+    fun onUsbDisconnected() {
+        if (_state.value is State.Streaming || _state.value is State.Connecting) {
+            disconnect()
+            _state.value = State.Failed("Phone disconnected from USB")
+        }
     }
 
     /** Toggles the phone display power through the control socket. */

@@ -21,6 +21,32 @@ enum class AudioCodec(val id: String, val mime: String, val codecId: Int) {
     }
 }
 
+/** Mirroring vs. desktop (virtual display) mode. */
+enum class DisplayMode(val label: String) {
+    AUTO("Auto (desktop, fallback mirror)"),
+    MIRROR("Mirror phone screen"),
+    DESKTOP("Desktop (virtual display)");
+
+    companion object {
+        fun fromName(name: String?): DisplayMode =
+            entries.firstOrNull { it.name == name } ?: AUTO
+    }
+}
+
+/** UI palette / Monet theme selection. */
+enum class ThemeStyle(val label: String) {
+    DYNAMIC("Monet / dynamic"),
+    GREEN("Scrcpy green"),
+    BLUE("Ocean blue"),
+    SUNSET("Sunset"),
+    PURPLE("Purple night");
+
+    companion object {
+        fun fromName(name: String?): ThemeStyle =
+            entries.firstOrNull { it.name == name } ?: DYNAMIC
+    }
+}
+
 /**
  * Simple SharedPreferences-backed settings store.
  */
@@ -61,6 +87,19 @@ class AppSettings(context: Context) {
     var maxFps: Int
         get() = clampInt(prefs.getInt("max_fps", 0), 0, 120)
         set(value) = prefs.edit().putInt("max_fps", clampInt(value, 0, 120)).apply()
+
+    var displayMode: DisplayMode
+        get() = DisplayMode.fromName(prefs.getString("display_mode", null))
+        set(value) = prefs.edit().putString("display_mode", value.name).apply()
+
+    /** Virtual display spec: "<w>x<h>/<dpi>" */
+    var desktopRes: String
+        get() = prefs.getString("desktop_res", "1280x720/160") ?: "1280x720/160"
+        set(value) = prefs.edit().putString("desktop_res", value).apply()
+
+    var themeStyle: ThemeStyle
+        get() = ThemeStyle.fromName(prefs.getString("theme_style", null))
+        set(value) = prefs.edit().putString("theme_style", value.name).apply()
 
     /** Downscale to at most maxSize px; 0 = native resolution */
     var maxSize: Int

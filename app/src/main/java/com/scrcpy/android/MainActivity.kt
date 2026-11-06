@@ -8,10 +8,16 @@ import android.view.MotionEvent
 import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import com.scrcpy.android.mirror.MirrorController
 import com.scrcpy.android.mirror.PhoneDisplayState
+import com.scrcpy.android.mirror.PlayerOverlayState
 import com.scrcpy.android.scrcpy.ControlWriter
 import com.scrcpy.android.ui.screens.HomeScreen
 import com.scrcpy.android.ui.screens.LogScreen
@@ -45,28 +51,34 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (isTvDevice()) {
-            hideSystemBars()
-        }
+        hideSystemBars()
         AppLog.i("Ui", "activity start (tv=${isTvDevice()})")
 
         setContent {
             ScrcpyAndroidTheme {
                 val screen by Navigator.current
-                when (Screen.entries[screen]) {
-                    Screen.PLAYER -> PlayerScreen(
-                        onExit = {
-                            Navigator.open(Screen.HOME)
-                            MirrorController.disconnect()
-                        }
-                    )
-                    Screen.SETTINGS -> SettingsScreen(onBack = { Navigator.open(Screen.HOME) })
-                    Screen.LOG -> LogScreen(onBack = { Navigator.open(Screen.HOME) })
-                    Screen.HOME -> HomeScreen(
-                        onOpenPlayer = { Navigator.open(Screen.PLAYER) },
-                        onOpenSettings = { Navigator.open(Screen.SETTINGS) },
-                        onOpenLog = { Navigator.open(Screen.LOG) }
-                    )
+                AnimatedContent(
+                    targetState = Screen.entries[screen],
+                    transitionSpec = {
+                        fadeIn(tween(180)) togetherWith fadeOut(tween(120))
+                    },
+                    label = "screens"
+                ) { target ->
+                    when (target) {
+                        Screen.PLAYER -> PlayerScreen(
+                            onExit = {
+                                Navigator.open(Screen.HOME)
+                                MirrorController.disconnect()
+                            }
+                        )
+                        Screen.SETTINGS -> SettingsScreen(onBack = { Navigator.open(Screen.HOME) })
+                        Screen.LOG -> LogScreen(onBack = { Navigator.open(Screen.HOME) })
+                        Screen.HOME -> HomeScreen(
+                            onOpenPlayer = { Navigator.open(Screen.PLAYER) },
+                            onOpenSettings = { Navigator.open(Screen.SETTINGS) },
+                            onOpenLog = { Navigator.open(Screen.LOG) }
+                        )
+                    }
                 }
             }
         }
@@ -101,28 +113,37 @@ class MainActivity : ComponentActivity() {
 
     /**
      * D-pad/IR keyboard → phone keys while the player is open.
-     * Remote BACK exits the player; if the phone display is off, BACK wakes it.
+     * BACK exits the player (or wakes the phone when its screen is off);
+     * MENU toggles the overlay so the TV stays fully immersive.
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (Navigator.isPlayer()) {
             when (event.action) {
-                KeyEvent.ACTION_DOWN -> if (event.keyCode == KeyEvent.KEYCODE_BACK) {
-                    if (PhoneDisplayState.off) {
-                        MirrorController.wakePhoneScreen()
-                    } else {
-                        MirrorController.disconnect()
-                        Navigator.open(Screen.HOME)
+                KeyEvent.ACTION_DOWN -> when (event.keyCode) {
+                    KeyEvent.KEYCODE_BACK -> {
+                        if (PhoneDisplayState.off) {
+                            MirrorController.wakePhoneScreen()
+                        } else {
+                            MirrorController.disconnect()
+                            Navigator.open(Screen.HOME)
+                        }
                     }
-                } else {
-                    controlWriter()?.injectKeycode(
-                        KeyEvent.ACTION_DOWN, event.keyCode,
-                        event.repeatCount, event.metaState
-                    )
+                    KeyEvent.KEYCODE_MENU -> {
+                        PlayerOverlayState.visible = !PlayerOverlayState.visible
+                    }
+                    else -> {
+                        val writer = controlWriter() ?: return super.dispatchKeyEvent(event)
+                        writer.injectKeycode(
+                            KeyEvent.ACTION_DOWN, event.keyCode,
+                            event.repeatCount, event.metaState
+                        )
+                    }
                 }
-                KeyEvent.ACTION_UP -> if (event.keyCode == KeyEvent.KEYCODE_BACK) {
-                    // handled above on DOWN (wake/home switch)
-                } else {
-                    controlWriter()?.injectKeycode(
+                KeyEvent.ACTION_UP -> if (event.keyCode != KeyEvent.KEYCODE_BACK &&
+                    event.keyCode != KeyEvent.KEYCODE_MENU
+                ) {
+                    val writer = controlWriter() ?: return super.dispatchKeyEvent(event)
+                    writer.injectKeycode(
                         KeyEvent.ACTION_UP, event.keyCode, 0, event.metaState
                     )
                 }

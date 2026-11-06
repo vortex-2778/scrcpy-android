@@ -142,6 +142,11 @@ class ScrcpySession(
     fun stop() {
         if (!stopped.compareAndSet(false, true)) return
         AppLog.i(TAG, "stopping session")
+        // Restore the phone display before tearing the control channel down.
+        if (com.scrcpy.android.mirror.PhoneDisplayState.off) {
+            runCatching { controlWriter?.setDisplayPower(true) }
+            com.scrcpy.android.mirror.PhoneDisplayState.off = false
+        }
         videoDecoder.stop()
         audioDecoder?.stop()
         infoPoller?.stop()
