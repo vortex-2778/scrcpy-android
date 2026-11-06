@@ -9,7 +9,7 @@ import java.security.Signature
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.RSAKeyGenParameterSpec
 import java.security.spec.RSAPublicKeySpec
-import java.util.Base64
+import android.util.Base64
 
 /**
  * Android-style RSA-2048 key for ADB authentication:
@@ -19,8 +19,6 @@ import java.util.Base64
  *    (the $ANDROID_PUBKEY format defined in adb's crypto/rsa.c).
  */
 object AdbKeyPair {
-
-    val B64 = Base64.getEncoder()
 
     private const val MODULUS_BYTES = 256 // 2048-bit modulus
     private const val NATIVE_KEY_SIZE = 4 + 4 + MODULUS_BYTES + MODULUS_BYTES + 4 // 524
@@ -44,10 +42,10 @@ object AdbKeyPair {
     }
 
     fun encodePrivate(keyPair: KeyPair): String =
-        B64.encodeToString(keyPair.private.encoded, Base64.NO_WRAP)
+        Base64.encodeToString(keyPair.private.encoded, Base64.NO_WRAP)
 
     fun load(b64: String): KeyPair {
-        val keyBytes = Base64.getDecoder().decode(b64)
+        val keyBytes = Base64.decode(b64, Base64.DEFAULT)
         val factory = KeyFactory.getInstance("RSA")
         val privateKey = factory.generatePrivate(PKCS8EncodedKeySpec(keyBytes))
         val (modulus, exponent) = parsePkcs8RsaKey(privateKey.encoded)
@@ -89,7 +87,7 @@ object AdbKeyPair {
         return (b64 + " scrcpy-android@host").toByteArray(Charsets.US_ASCII) + 0
     }
 
-    fun encode(blob: ByteArray): String = B64.encodeToString(blob, Base64.NO_WRAP)
+    fun encode(blob: ByteArray): String = Base64.encodeToString(blob, Base64.NO_WRAP)
 
     private fun copyBeRightAligned(blob: ByteArray, start: Int, size: Int, value: BigInteger) {
         val bytes = stripLeadingZeros(value.toByteArray())

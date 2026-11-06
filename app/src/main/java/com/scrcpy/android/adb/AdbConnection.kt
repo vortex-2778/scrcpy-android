@@ -174,7 +174,7 @@ class AdbConnection(
                 sendPacket(AdbPacket.A_OPEN, attemptId, 0,
                     service.toByteArray(Charsets.US_ASCII))
                 stream.waitOkay(timeoutMs)
-                if (stream.okayArrived) {
+                if (stream.remoteId != 0) {
                     AppLog.i(TAG, "OPEN $service -> local=$attemptId remote=${stream.remoteId}")
                     return stream
                 }

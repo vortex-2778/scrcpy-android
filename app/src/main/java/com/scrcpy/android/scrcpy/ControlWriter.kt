@@ -18,50 +18,51 @@ import java.io.DataOutputStream
  */
 class ControlWriter(private val stream: AdbStream) {
 
-    // scrcpy ControlMessage ids
-    val TYPE_INJECT_KEYCODE = 0
-    val TYPE_INJECT_TOUCH_EVENT = 2
-    val TYPE_INJECT_SCROLL_EVENT = 3
-    val TYPE_BACK_OR_SCREEN_ON = 4
-    val TYPE_EXPAND_NOTIFICATION_PANEL = 5
-    val TYPE_EXPAND_SETTINGS_PANEL = 6
-    val TYPE_COLLAPSE_PANELS = 7
-    val TYPE_SET_DISPLAY_POWER = 10
-    val TYPE_ROTATE_DEVICE = 11
-    val TYPE_OPEN_HARD_KEYBOARD_SETTINGS = 15
-    val TYPE_RESET_VIDEO = 17
+    // scrcpy ControlMessage ids (ControlMessage.java)
+    private val TYPE_INJECT_KEYCODE = 0
+    private val TYPE_INJECT_TEXT = 1
+    private val TYPE_INJECT_TOUCH_EVENT = 2
+    private val TYPE_INJECT_SCROLL_EVENT = 3
+    private val TYPE_BACK_OR_SCREEN_ON = 4
+    private val TYPE_EXPAND_NOTIFICATION_PANEL = 5
+    private val TYPE_EXPAND_SETTINGS_PANEL = 6
+    private val TYPE_COLLAPSE_PANELS = 7
+    private val TYPE_SET_DISPLAY_POWER = 10
+    private val TYPE_ROTATE_DEVICE = 11
+    private val TYPE_OPEN_HARD_KEYBOARD_SETTINGS = 15
+    private val TYPE_RESET_VIDEO = 17
 
-    // pointer ids used by the server for mouse emulation / touch
-    val POINTER_ID_MOUSE = -1L
+    // touch action ids (same encoding as android.view.MotionEvent)
+    private val ACTION_DOWN = 0
 
-    const val MOUSE_POINTER_ID = -1L
-    const val TOUCH_POINTER_ID = 0L
-
-    // touch action ids
-    val ACTION_DOWN = 0
-    val ACTION_UP = 1
-    val ACTION_MOVE = 2
-    val ACTION_HOVER_MOVE = 7
+    companion object {
+        // pointer ids: the server maps -1 to mouse (hover/scroll) events
+        const val MOUSE_POINTER_ID = -1L
+        /** real finger on the phone */
+        const val TOUCH_POINTER_ID = 0L
+    }
 
     private val lock = Object()
 
     fun injectKeycode(action: Int, keycode: Int, repeat: Int = 0, metaState: Int = 0) {
-        val w = newWriter()
+        val out = newOut()
+        val w = DataOutputStream(out)
         w.writeByte(TYPE_INJECT_KEYCODE)
         w.writeByte(action)
         w.writeInt(keycode)
         w.writeInt(repeat)
         w.writeInt(metaState)
-        send(w)
+        send(out)
     }
 
     fun injectText(text: String) {
         val bytes = text.toByteArray(Charsets.UTF_8)
-        val w = newWriter()
-        w.writeByte(1)
+        val out = newOut()
+        val w = DataOutputStream(out)
+        w.writeByte(TYPE_INJECT_TEXT)
         w.writeInt(bytes.size)
         w.write(bytes)
-        send(w)
+        send(out)
     }
 
     /**
@@ -79,7 +80,8 @@ class ControlWriter(private val stream: AdbStream) {
         actionButton: Int = 0,
         buttons: Int = 0,
     ) {
-        val w = newWriter()
+        val out = newOut()
+        val w = DataOutputStream(out)
         w.writeByte(TYPE_INJECT_TOUCH_EVENT)
         w.writeByte(action)
         w.writeLong(pointerId)
@@ -90,7 +92,7 @@ class ControlWriter(private val stream: AdbStream) {
         w.writeShort(pressureToU16(pressure))
         w.writeInt(actionButton)
         w.writeInt(buttons)
-        send(w)
+        send(out)
     }
 
     fun injectScroll(
@@ -102,7 +104,8 @@ class ControlWriter(private val stream: AdbStream) {
         vScroll: Float,
         buttons: Int = 0,
     ) {
-        val w = newWriter()
+        val out = newOut()
+        val w = DataOutputStream(out)
         w.writeByte(TYPE_INJECT_SCROLL_EVENT)
         w.writeInt(x)
         w.writeInt(y)
@@ -111,45 +114,59 @@ class ControlWriter(private val stream: AdbStream) {
         w.writeShort(i16Fixed(hScroll))
         w.writeShort(i16Fixed(vScroll))
         w.writeInt(buttons)
-        send(w)
+        send(out)
     }
 
     fun backOrScreenOn(action: Int) {
-        val w = newWriter()
+        val out = newOut()
+        val w = DataOutputStream(out)
         w.writeByte(TYPE_BACK_OR_SCREEN_ON)
         w.writeByte(action)
-        send(w)
+        send(out)
     }
 
     fun setDisplayPower(on: Boolean) {
-        val w = newWriter()
+        val out = newOut()
+        val w = DataOutputStream(out)
         w.writeByte(TYPE_SET_DISPLAY_POWER)
         w.writeByte(if (on) 1 else 0)
-        send(w)
+        send(out)
     }
 
     fun expandNotifications() {
-        val w = newWriter(); w.writeByte(TYPE_EXPAND_NOTIFICATION_PANEL); send(w)
+        val out = newOut()
+        val w = DataOutputStream(out)
+        w.writeByte(TYPE_EXPAND_NOTIFICATION_PANEL); send(out)
     }
 
     fun expandSettings() {
-        val w = newWriter(); w.writeByte(TYPE_EXPAND_SETTINGS_PANEL); send(w)
+        val out = newOut()
+        val w = DataOutputStream(out)
+        w.writeByte(TYPE_EXPAND_SETTINGS_PANEL); send(out)
     }
 
     fun collapsePanels() {
-        val w = newWriter(); w.writeByte(TYPE_COLLAPSE_PANELS); send(w)
+        val out = newOut()
+        val w = DataOutputStream(out)
+        w.writeByte(TYPE_COLLAPSE_PANELS); send(out)
     }
 
     fun rotateDevice() {
-        val w = newWriter(); w.writeByte(TYPE_ROTATE_DEVICE); send(w)
+        val out = newOut()
+        val w = DataOutputStream(out)
+        w.writeByte(TYPE_ROTATE_DEVICE); send(out)
     }
 
     fun openHardKeyboardSettings() {
-        val w = newWriter(); w.writeByte(TYPE_OPEN_HARD_KEYBOARD_SETTINGS); send(w)
+        val out = newOut()
+        val w = DataOutputStream(out)
+        w.writeByte(TYPE_OPEN_HARD_KEYBOARD_SETTINGS); send(out)
     }
 
     fun resetVideo() {
-        val w = newWriter(); w.writeByte(TYPE_RESET_VIDEO); send(w)
+        val out = newOut()
+        val w = DataOutputStream(out)
+        w.writeByte(TYPE_RESET_VIDEO); send(out)
     }
 
     /** u16 fixed point conversion as in scrcpy's Binary.u16FixedPointToFloat (inverse). */
@@ -162,10 +179,10 @@ class ControlWriter(private val stream: AdbStream) {
     private fun i16Fixed(value: Float): Int =
         ((value / 16f) * 0x8000).toInt().coerceIn(-0x8000, 0x7fff) and 0xffff
 
-    private fun newWriter() = ByteArrayOutputStream().let(::DataOutputStream)
+    private fun newOut() = ByteArrayOutputStream()
 
-    private fun send(w: DataOutputStream) {
-        val bytes = (w.out as ByteArrayOutputStream).toByteArray()
+    private fun send(out: ByteArrayOutputStream) {
+        val bytes = out.toByteArray()
         synchronized(lock) {
             stream.write(bytes)
         }

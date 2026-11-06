@@ -67,14 +67,14 @@ class UsbTransport(
         connection.bulkTransfer(inEndpoint, data, offset, len, timeoutMs)
 
     /** Reads exactly [len] bytes or throws. Blocks with up to [totalTimeoutMs] budget. */
-    fun readFully(data: ByteArray, offset: Int, len: Int, totalTimeoutMs: Int = 20000) {
+    fun readFully(data: ByteArray, offset: Int, len: Int, totalTimeoutMs: Int = 60000) {
         var got = 0
         val deadline = System.currentTimeMillis() + totalTimeoutMs
         while (got < len) {
             val remaining = deadline - System.currentTimeMillis()
             if (remaining <= 0) throw TransportException("USB read timeout ($got/$len)")
             val n = connection.bulkTransfer(inEndpoint, data, offset + got, len - got,
-                remaining.coerceAtMost(5000))
+                remaining.coerceAtMost(5000).toInt().coerceAtLeast(100))
             if (n < 0) {
                 if (System.currentTimeMillis() >= deadline) throw TransportException("USB read timeout ($got/$len)")
                 continue

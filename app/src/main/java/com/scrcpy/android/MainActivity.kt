@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
             View.SYSTEM_UI_FLAG_LOW_PROFILE or
                 View.SYSTEM_UI_FLAG_FULLSCREEN or
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                View.SYSTEM_UI_FLAG_STABLE_LAYOUT
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
     }
 
     // ---------------- input forwarding ----------------

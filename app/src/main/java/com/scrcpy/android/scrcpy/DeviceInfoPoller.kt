@@ -1,6 +1,7 @@
 package com.scrcpy.android.scrcpy
 
 import com.scrcpy.android.mirror.MirrorController
+import com.scrcpy.android.util.AppLog
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**

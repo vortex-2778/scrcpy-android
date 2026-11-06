@@ -26,7 +26,6 @@ object UsbMonitor {
         data class DeviceAttached(val device: UsbDevice) : UsbState
         data class Granted(val device: UsbDevice) : UsbState
     }
-
     private val _state = MutableStateFlow<UsbState>(UsbState.NoDevice)
     val state: StateFlow<UsbState> = _state
 
