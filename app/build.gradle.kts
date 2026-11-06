@@ -29,10 +29,10 @@ android {
 
     signingConfigs {
         create("ci") {
-            // Filled from environment when present (CI)
+            // Filled from environment when present (CI; keystore lives at repo root)
             val ksPath = System.getenv("SCRCAPY_KEYSTORE")
-            if (ksPath != null && File(ksPath).exists()) {
-                storeFile = file(ksPath)
+            if (ksPath != null && rootProject.file(ksPath).exists()) {
+                storeFile = rootProject.file(ksPath)
                 storePassword = System.getenv("SCRCAPY_KEYSTORE_PASS") ?: "android"
                 keyAlias = System.getenv("SCRCAPY_KEY_ALIAS") ?: "scrcpyandroid"
                 keyPassword = System.getenv("SCRCAPY_KEY_PASS") ?: "android"
@@ -44,7 +44,7 @@ android {
         release {
             isMinifyEnabled = false
             val ksPath = System.getenv("SCRCAPY_KEYSTORE")
-            if (ksPath != null && File(ksPath).exists()) {
+            if (ksPath != null && rootProject.file(ksPath).exists()) {
                 signingConfig = signingConfigs.getByName("ci")
             }
         }
