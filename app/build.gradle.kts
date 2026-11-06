@@ -19,23 +19,24 @@ android {
     signingConfigs {
         create("ci") {
             // Filled from environment when present (CI)
+            val ksPath = System.getenv("SCRCAPY_KEYSTORE")
+            if (ksPath != null && File(ksPath).exists()) {
+                storeFile = file(ksPath)
+                storePassword = System.getenv("SCRCAPY_KEYSTORE_PASS") ?: "android"
+                keyAlias = System.getenv("SCRCAPY_KEY_ALIAS") ?: "scrcpyandroid"
+                keyPassword = System.getenv("SCRCAPY_KEY_PASS") ?: "android"
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            val ksPath = System.getenv("SCRCAPY_KEYSTORE")
+            if (ksPath != null && File(ksPath).exists()) {
+                signingConfig = signingConfigs.getByName("ci")
+            }
         }
-    }
-
-    val ksPath = System.getenv("SCRCAPY_KEYSTORE")
-    if (ksPath != null && File(ksPath).exists()) {
-        val s = signingConfigs.getByName("ci")
-        s.storeFile = file(ksPath)
-        s.storePassword = System.getenv("SCRCAPY_KEYSTORE_PASS") ?: "android"
-        s.keyAlias = System.getenv("SCRCAPY_KEY_ALIAS") ?: "scrcpyandroid"
-        s.keyPassword = System.getenv("SCRCAPY_KEY_PASS") ?: "android"
-        buildTypes.release.signingConfig = s
     }
 
     buildFeatures {
