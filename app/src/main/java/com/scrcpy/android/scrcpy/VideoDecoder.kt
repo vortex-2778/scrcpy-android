@@ -2,6 +2,7 @@ package com.scrcpy.android.scrcpy
 
 import android.media.MediaCodec
 import android.media.MediaFormat
+import android.os.SystemClock
 import android.view.Surface
 import com.scrcpy.android.adb.AdbStream
 import com.scrcpy.android.util.AppLog
@@ -36,6 +37,10 @@ class VideoDecoder(
     /** Destination surface; set by the player right after construction. */
     @Volatile
     var surface: Surface? = null
+        private set
+
+    @Volatile
+    private var restartRequested = false
 
     @Volatile
     var frameCount: Long = 0
@@ -45,6 +50,17 @@ class VideoDecoder(
     @Volatile
     private var running = true
     private var thread: Thread? = null
+
+    /**
+     * Player surface lifecycle: when the TV app is backgrounded the SurfaceView
+     * surface is destroyed; frames keep being consumed but not rendered, and the
+     * decoder is recreated when a new surface arrives.
+     */
+    fun updateSurface(newSurface: Surface?) {
+        if (newSurface === surface) return
+        surface = newSurface
+        if (newSurface != null) restartRequested = true
+    }
 
     fun start() {
         thread = Thread({ run() }, "scrcpy-video").apply {
@@ -78,9 +94,46 @@ class VideoDecoder(
         val metaBuf = ByteArray(AdbHeaderStub.SESSION_META_SIZE)
         var codec: MediaCodec? = null
         var pendingCsd: ByteArray? = null
+        var lastConfigureAttempt = 0L
+
+        fun releaseCodec() {
+            runCatching { codec?.stop() }
+            runCatching { codec?.release() }
+            codec = null
+        }
+
+        /**
+         * (Re)creates the decoder once both the codec config and a surface are
+         * available. While the TV app is backgrounded there is no surface: the
+         * stream keeps being consumed so the ADB socket stays in sync.
+         */
+        fun ensureCodec() {
+            val csd = pendingCsd ?: return
+            val target = surface ?: return
+            if (codec != null) return
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastConfigureAttempt < 1_000) return
+            lastConfigureAttempt = now
+            try {
+                codec = configure(csd, target)
+            } catch (t: Throwable) {
+                AppLog.e(TAG, "decoder configure failed: ${t.message}")
+                releaseCodec()
+            }
+        }
 
         try {
             while (running) {
+                // Surface gone (activity stopped): release the decoder but keep
+                // draining packets so the stream stays aligned.
+                if (surface == null && codec != null) releaseCodec()
+
+                if (restartRequested) {
+                    restartRequested = false
+                    releaseCodec()
+                }
+                ensureCodec()
+
                 readFully(metaBuf, 0, metaBuf.size)
                 val wordAt0 = be32(metaBuf, 0)
                 if ((wordAt0 and 0x80000000.toInt()) != 0) {
@@ -106,35 +159,22 @@ class VideoDecoder(
 
                 if ((ptsAndFlags and PTS_FLAG_CONFIG) != 0L) {
                     // New codec-specific data: (re)start the decoder with it.
-                    if (payload.contentEquals(pendingCsd) && codec != null) {
-                        // duplicate config with running codec -> drop
-                        continue
+                    val sameCsd = pendingCsd?.contentEquals(payload) == true
+                    if (!sameCsd) {
+                        releaseCodec()
+                        pendingCsd = payload
                     }
-                    if (pendingCsd != null) {
-                        // stream was reconfigured mid-flight (session meta seen before)
-                        runCatching { codec?.stop() }
-                        runCatching { codec?.release() }
-                        codec = null
-                    }
-                    pendingCsd = payload
-                    codec = configure(payload)
+                    ensureCodec()
                 } else if (codec != null) {
                     submitFrame(codec!!, payload, ptsAndFlags)
                 }
             }
         } finally {
-            runCatching { codec?.stop() }
-            runCatching { codec?.release() }
+            releaseCodec()
         }
     }
 
-    private fun configure(csd: ByteArray): MediaCodec {
-        // Wait briefly for the player screen to hand over a surface.
-        var waited = 0
-        while (surface == null && running && waited < 5000) {
-            Thread.sleep(100)
-            waited += 100
-        }
+    private fun configure(csd: ByteArray, target: Surface): MediaCodec {
         val format = MediaFormat.createVideoFormat(
             mime,
             if (meta.width > 0) meta.width else 1280,
@@ -153,9 +193,14 @@ class VideoDecoder(
             format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
         }
         val codec = MediaCodec.createDecoderByType(mime)
-        codec.configure(format, surface, null, 0)
-        codec.start()
-        return codec
+        try {
+            codec.configure(format, target, null, 0)
+            codec.start()
+            return codec
+        } catch (t: Throwable) {
+            runCatching { codec.release() }
+            throw t
+        }
     }
 
     private fun submitFrame(codec: MediaCodec, data: ByteArray, ptsAndFlags: Long) {

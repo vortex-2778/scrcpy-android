@@ -136,7 +136,13 @@ class ScrcpySession(
     }
 
     fun setSurface(surface: android.view.Surface?) {
-        videoDecoder.surface = surface
+        val previous = videoDecoder.surface
+        videoDecoder.updateSurface(surface)
+        // Reattached after the TV app was backgrounded: ask the phone encoder for
+        // a fresh session (config + keyframe) so video resumes immediately.
+        if (surface != null && surface !== previous) {
+            runCatching { controlWriter?.resetVideo() }
+        }
     }
 
     fun stop() {

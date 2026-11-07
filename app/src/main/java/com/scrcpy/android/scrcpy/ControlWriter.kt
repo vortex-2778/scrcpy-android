@@ -1,6 +1,7 @@
 package com.scrcpy.android.scrcpy
 
 import com.scrcpy.android.adb.AdbStream
+import com.scrcpy.android.util.AppLog
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 
@@ -43,6 +44,10 @@ class ControlWriter(private val stream: AdbStream) {
     }
 
     private val lock = Object()
+
+    /** Set after the control socket dies (cable yank); further writes are dropped. */
+    @Volatile
+    private var broken = false
 
     fun injectKeycode(action: Int, keycode: Int, repeat: Int = 0, metaState: Int = 0) {
         val out = newOut()
@@ -182,9 +187,15 @@ class ControlWriter(private val stream: AdbStream) {
     private fun newOut() = ByteArrayOutputStream()
 
     private fun send(out: ByteArrayOutputStream) {
+        if (broken) return
         val bytes = out.toByteArray()
         synchronized(lock) {
-            stream.write(bytes)
+            try {
+                stream.write(bytes)
+            } catch (e: Exception) {
+                broken = true
+                AppLog.w("Control", "write failed (control channel closed): ${e.message}")
+            }
         }
     }
 }
