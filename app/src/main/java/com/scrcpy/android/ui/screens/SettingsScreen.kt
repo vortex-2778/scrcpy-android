@@ -323,6 +323,7 @@ private fun segmented(
     }
 }
 
+@Composable
 private fun segmentedColors(): SegmentedButtonColors =
     SegmentedButtonDefaults.colors(
         activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
