@@ -1,12 +1,11 @@
 package com.scrcpy.android.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -15,24 +14,24 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.scrcpy.android.mirror.MirrorController
 import com.scrcpy.android.scrcpy.ServerArgs
-import com.scrcpy.android.usb.UsbMonitor
+import com.scrcpy.android.ui.components.InsightCard
+import com.scrcpy.android.ui.components.ScreenBackdrop
+import com.scrcpy.android.ui.components.SectionCard
 import com.scrcpy.android.ui.components.StatusDot
-import com.scrcpy.android.ui.theme.Accent
-import com.scrcpy.android.ui.theme.Danger
-import com.scrcpy.android.ui.theme.InfoBlue
-import com.scrcpy.android.ui.theme.TextSecondary
-import com.scrcpy.android.ui.theme.Warm
+import com.scrcpy.android.usb.UsbMonitor
 
+/**
+ * TV dashboard: status hero, primary action first, live phone insight tiles.
+ * All colors come from the theme scheme so dark mode always shows light text.
+ */
 @Composable
 fun HomeScreen(
     onOpenPlayer: () -> Unit,
@@ -42,141 +41,165 @@ fun HomeScreen(
     val state by MirrorController.state.collectAsState()
     val usbState by UsbMonitor.state.collectAsState()
     val phone by MirrorController.phoneStatus.collectAsState()
+    val streaming = state as? MirrorController.State.Streaming
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            text = "Scrcpy Android Port",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = "USB mirror of a phone screen to this TV (wired, with remote control back to the phone).",
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary
-        )
-
-        // --- connection row ---
-        val dotColor = when {
-            state is MirrorController.State.Streaming -> Accent
-            state is MirrorController.State.Connecting -> Warm
-            state is MirrorController.State.Failed -> Danger
-            usbState is UsbMonitor.UsbState.Granted -> InfoBlue
-            usbState is UsbMonitor.UsbState.DeviceAttached -> Warm
-            else -> Danger
-        }
-        val statusText = when (val s = state) {
-            is MirrorController.State.Streaming -> "Streaming"
-            is MirrorController.State.Connecting -> s.step
-            is MirrorController.State.Failed -> s.message
-            MirrorController.State.Idle -> when (val u = usbState) {
-                is UsbMonitor.UsbState.Granted -> "Phone ready over USB"
-                is UsbMonitor.UsbState.DeviceAttached -> "Tap connect to grant USB access"
-                UsbMonitor.UsbState.NoDevice -> "No phone detected on USB"
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ScreenBackdrop {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 32.dp, vertical = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            StatusDot(dotColor)
-            Text(statusText, style = MaterialTheme.typography.titleMedium)
-        }
+            Text(
+                text = "Scrcpy Android Port",
+                style = MaterialTheme.typography.headlineLarge
+            )
+            Text(
+                text = "Wired low-latency mirroring: phone → TV over USB, with remote " +
+                    "control passed back to the phone.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
-        if (state is MirrorController.State.Failed) {
-            OutlinedButton(onClick = { MirrorController.clearError() }) {
-                Text("Dismiss error")
+            // --------------------------------------------- status hero card ----
+            val (dotColor, statusHeadline, statusSubline) = when (val s = state) {
+                is MirrorController.State.Streaming -> tripleStatus(
+                    MaterialTheme.colorScheme.primary,
+                    "Streaming",
+                    streaming?.session?.videoDecoder?.deviceName?.takeIf { it.isNotEmpty() }
+                        ?: "Live video + input"
+                )
+                is MirrorController.State.Connecting -> tripleStatus(
+                    androidx.compose.ui.graphics.Color(0xFFF0B429),
+                    s.step.ifBlank { "Connecting" },
+                    "ADB handshake · pushing scrcpy ${ServerArgs.SERVER_VERSION}"
+                )
+                is MirrorController.State.Failed -> tripleStatus(
+                    MaterialTheme.colorScheme.error,
+                    "Stopped",
+                    s.message
+                )
+                MirrorController.State.Idle -> when (val u = usbState) {
+                    is UsbMonitor.UsbState.Granted -> tripleStatus(
+                        MaterialTheme.colorScheme.tertiary,
+                        "Phone ready",
+                        "USB debugging authorized — press Connect"
+                    )
+                    is UsbMonitor.UsbState.DeviceAttached -> tripleStatus(
+                        androidx.compose.ui.graphics.Color(0xFFF0B429),
+                        "Phone attached",
+                        "Press Connect to grant USB access"
+                    )
+                    UsbMonitor.UsbState.NoDevice -> tripleStatus(
+                        MaterialTheme.colorScheme.error,
+                        "No phone on USB",
+                        "Plug a USB data cable from the phone into the TV"
+                    )
+                }
+            }
+
+            SectionCard(title = "Status") {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    StatusDot(dotColor)
+                    Text(statusHeadline, style = MaterialTheme.typography.titleLarge)
+                }
+                Text(
+                    statusSubline,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (state is MirrorController.State.Failed) {
+                    OutlinedButton(onClick = { MirrorController.clearError() }) {
+                        Text("Dismiss")
+                    }
+                }
+            }
+
+            // -------------------------------------------------- action row ----
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                when (val s = state) {
+                    is MirrorController.State.Streaming -> {
+                        Button(onClick = onOpenPlayer) { Text("Open player") }
+                        OutlinedButton(onClick = { MirrorController.disconnect() }) {
+                            Text("Stop")
+                        }
+                    }
+                    is MirrorController.State.Connecting -> {
+                        Button(onClick = { MirrorController.disconnect() }) { Text("Cancel") }
+                    }
+                    else -> {
+                        Button(onClick = { MirrorController.startConnection() }) {
+                            Text("Connect")
+                        }
+                    }
+                }
+                OutlinedButton(onClick = onOpenSettings) { Text("Settings") }
+                OutlinedButton(onClick = onOpenLog) { Text("Log") }
+            }
+
+            // --------------------------------------------- insight tiles ------
+            val decoder = streaming?.session?.videoDecoder
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                InsightCard(
+                    "Battery",
+                    phone.batteryPercent?.let { "$it%" } ?: "—",
+                    modifier = Modifier.weight(1f)
+                )
+                InsightCard(
+                    "Temp",
+                    phone.temperatureCelsius?.let { "$it°C" } ?: "—",
+                    modifier = Modifier.weight(1f)
+                )
+                InsightCard(
+                    "Source",
+                    decoder?.meta?.takeIf { it.width > 0 }
+                        ?.let { "${it.width}×${it.height}" } ?: "—",
+                    modifier = Modifier.weight(1f)
+                )
+                InsightCard(
+                    "Frames",
+                    streaming?.session?.videoDecoder?.frameCount?.toString() ?: "0",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            SectionCard(title = "How it works") {
+                Column {
+                    HowLine("1", "The app speaks ADB over USB and authorizes with a persisted RSA key (accept the dialog on the phone once).")
+                    HowLine("2", "Official scrcpy ${ServerArgs.SERVER_VERSION} server is pushed to /data/local/tmp and launched via app_process.")
+                    HowLine("3", "Video (H.264/H.265) + audio are streamed back and decoded to this screen.")
+                    HowLine("4", "D-pad, clicks and scrolling you make here are injected as input on the phone.")
+                }
             }
         }
-
-        // --- actions ---
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            when (val s = state) {
-                is MirrorController.State.Streaming -> {
-                    Button(
-                        onClick = onOpenPlayer,
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent)
-                    ) {
-                        Text("Open player")
-                    }
-                    Button(
-                        onClick = { MirrorController.disconnect() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Danger)
-                    ) {
-                        Text("Stop")
-                    }
-                }
-                is MirrorController.State.Connecting -> {
-                    Button(onClick = { MirrorController.disconnect() }) {
-                        Text("Cancel")
-                    }
-                }
-                else -> {
-                    Button(
-                        onClick = { MirrorController.startConnection() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent)
-                    ) {
-                        Text("Connect")
-                    }
-                }
-            }
-            OutlinedButton(onClick = onOpenSettings) { Text("Settings") }
-            OutlinedButton(onClick = onOpenLog) { Text("Log") }
-        }
-
-        // --- phone info ---
-        InfoGrid(
-            phoneName = (state as? MirrorController.State.Streaming)?.session?.videoDecoder?.deviceName,
-            resolution = (state as? MirrorController.State.Streaming)?.session?.videoDecoder?.meta,
-            battery = phone.batteryPercent,
-            tempC = phone.temperatureCelsius
-        )
-
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "How it works",
-            style = MaterialTheme.typography.titleMedium
-        )
-        Text(
-            text = "The TV app speaks the Android Debug Bridge protocol directly over USB, pushes the " +
-                "official scrcpy ${ServerArgs.SERVER_VERSION} server jar to the phone's /data/local/tmp " +
-                "and launches it with app_process. Video is streamed to this screen and remote-control " +
-                "events (D-pad, clicks, scroll) are injected on the phone.",
-            style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary
-        )
     }
 }
 
-@Composable
-private fun InfoGrid(
-    phoneName: String?,
-    resolution: com.scrcpy.android.scrcpy.VideoDecoder.Meta?,
-    battery: Int?,
-    tempC: Int?,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        InfoLine("Phone", phoneName ?: "—")
-        InfoLine(
-            "Resolution",
-            if (resolution != null && resolution.width > 0) "${resolution.width}x${resolution.height}" else "—"
-        )
-        InfoLine("Battery", battery?.let { "$it%" } ?: "—")
-        InfoLine("Temperature", tempC?.let { "$it°C" } ?: "—")
-    }
-}
+private fun tripleStatus(color: androidx.compose.ui.graphics.Color, headline: String, subline: String) =
+    Triple(color, headline, subline)
 
 @Composable
-private fun InfoLine(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        Text(label, modifier = Modifier.width(120.dp), color = TextSecondary)
-        Text(value, fontWeight = FontWeight.SemiBold)
+private fun HowLine(index: String, text: String) {
+    Row(Modifier.padding(vertical = 4.dp)) {
+        Text(
+            index,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .width(28.dp)
+                .padding(top = 2.dp)
+        )
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -31,9 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.scrcpy.android.mirror.MirrorController
 import com.scrcpy.android.mirror.PlayerOverlayState
-import com.scrcpy.android.ui.theme.Navy800
 import com.scrcpy.android.ui.theme.TextSecondary
-import com.scrcpy.android.ui.theme.Warm
 import kotlinx.coroutines.delay
 
 /**
@@ -132,43 +131,63 @@ fun PlayerScreen(onExit: () -> Unit) {
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Phone display",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TextSecondary
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { MirrorController.setPhoneDisplay(true) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Warm)
-                    ) { Text("Phone screen on") }
-                    Button(
-                        onClick = { MirrorController.setPhoneDisplay(false) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Navy800)
-                    ) { Text("off") }
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiary
+                        )
+                    ) { Text("Screen on") }
+                    OutlinedButton(
+                        onClick = { MirrorController.setPhoneDisplay(false) }
+                    ) { Text("Screen off") }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
+                Text(
+                    "Phone actions",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TextSecondary
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
                         onClick = {
                             session?.controlWriter?.let { writer ->
-                                writer.injectKeycode(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_BACK, 0, 0)
-                                writer.injectKeycode(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_BACK, 0, 0)
+                                writer.injectKeycode(
+                                    android.view.KeyEvent.ACTION_DOWN,
+                                    android.view.KeyEvent.KEYCODE_BACK, 0, 0
+                                )
+                                writer.injectKeycode(
+                                    android.view.KeyEvent.ACTION_UP,
+                                    android.view.KeyEvent.KEYCODE_BACK, 0, 0
+                                )
                             }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Navy800)
-                    ) { Text("Phone back") }
-                    Button(
-                        onClick = { session?.controlWriter?.rotateDevice() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Navy800)
+                        }
+                    ) { Text("Back") }
+                    OutlinedButton(
+                        onClick = { session?.controlWriter?.rotateDevice() }
                     ) { Text("Rotate") }
-                    Button(onClick = onExit) { Text("Exit") }
+                    Button(
+                        onClick = onExit,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) { Text("Exit") }
                 }
             }
         }
 
         if (!PlayerOverlayState.visible && session != null) {
             Text(
-                "MENU: controls · BACK: exit",
+                "MENU: controls · BACK: exit · Ctrl+Esc: leave app",
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = 12.dp),
                 style = MaterialTheme.typography.labelSmall,
-                color = TextSecondary.copy(alpha = 0.6f)
+                color = TextSecondary.copy(alpha = 0.7f)
             )
         }
 
@@ -195,8 +214,11 @@ fun currentStreamingSession(): com.scrcpy.android.scrcpy.ScrcpySession? =
 fun Chip(text: String) {
     androidx.compose.foundation.layout.Box(
         modifier = Modifier
-            .background(Navy800.copy(alpha = 0.85f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .background(
+                MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.88f),
+                RoundedCornerShape(10.dp)
+            )
+            .padding(horizontal = 12.dp, vertical = 7.dp)
     ) {
         Text(text, style = MaterialTheme.typography.labelMedium)
     }

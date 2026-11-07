@@ -12,6 +12,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -60,7 +61,9 @@ class MainActivity : ComponentActivity() {
                 AnimatedContent(
                     targetState = Screen.entries[screen],
                     transitionSpec = {
-                        fadeIn(tween(180)) togetherWith fadeOut(tween(120))
+                        // expressive depth: fade + slight vertical settle
+                        (fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 16 })
+                            .togetherWith(fadeOut(tween(150)))
                     },
                     label = "screens"
                 ) { target ->
@@ -81,6 +84,26 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    /** Disconnect cleanly and close the app (Ctrl+Esc / HOME). */
+    private fun exitApplication() {
+        AppLog.i("Ui", "exit requested (${if (Navigator.isPlayer()) "player" else "home"})")
+        MirrorController.disconnect()
+        finishAffinity()
+    }
+
+    /**
+     * Leaving with the remote HOME button: drop the session so the phone screen
+     * is restored and USB is released; reopening the app starts fresh.
+     */
+    override fun onStop() {
+        super.onStop()
+        val state = MirrorController.state.value
+        if (state is MirrorController.State.Streaming) {
+            AppLog.i("Ui", "activity left while streaming -> disconnecting")
+            MirrorController.disconnect()
         }
     }
 
@@ -112,11 +135,29 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * D-pad/IR keyboard → phone keys while the player is open.
-     * BACK exits the player (or wakes the phone when its screen is off);
-     * MENU toggles the overlay so the TV stays fully immersive.
+     * Exit paths while mirroring (all keys otherwise go to the phone):
+     *  - remote HOME / TV launcher button  -> leaves the app (onStop disconnects)
+     *  - keyboard Ctrl+Esc                  -> exits immediately from anywhere
+     *  - BACK in player                     -> exits the player
+     *  - MENU in player                     -> toggles the overlay
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Ctrl+Esc: hard exit from any screen, incl. while forwarding to phone.
+        if (event.action == KeyEvent.ACTION_DOWN &&
+            event.keyCode == KeyEvent.KEYCODE_ESCAPE &&
+            event.metaState and KeyEvent.META_CTRL_MASK != 0
+        ) {
+            exitApplication()
+            return true
+        }
+        // Some STB remotes do deliver HOME keycodes; treat it as an app exit too
+        // (most Android TVs deliver HOME to the system instead of key events).
+        if (event.action == KeyEvent.ACTION_DOWN &&
+            event.keyCode == KeyEvent.KEYCODE_HOME
+        ) {
+            exitApplication()
+            return true
+        }
         if (Navigator.isPlayer()) {
             when (event.action) {
                 KeyEvent.ACTION_DOWN -> when (event.keyCode) {

@@ -20,8 +20,21 @@ mode)** on supported Android versions, with automatic fallback to plain mirrorin
 - **Battery level + temperature overlay** (polled via `dumpsys battery`).
 - **USB hot-plug** detection, permission prompt, automatic app launch when the phone is plugged.
 - TV **and** phone friendly Material 3 UI, immersive fullscreen player, animated transitions.
-- **Theming**: Monet/dynamic colors (Android 12+) or 4 built-in palettes.
+- **Theming**: Material You/Monet (Android 12+) or 4 built-in color palettes, selectable
+  from the Settings page, plus bundled Roboto typography.
 - Input takeover while mirroring: all remote/keyboard/mouse events go to the phone.
+
+## TV remote & exit behavior
+
+While the player is open, **every** key/click/scroll is forwarded to the phone, so:
+
+| Input | Effect |
+| --- | --- |
+| Remote/buttons, mouse, keyboard | injected on the phone (normal use) |
+| `MENU` (player) | shows/hides the on-screen overlay |
+| `BACK` (player) | exits the player (wakes the phone first if its screen is off) |
+| Remote **HOME** button | leaves the app (session is dropped, phone screen restored) |
+| Keyboard **Ctrl + Esc** | exits the app immediately, from any screen |
 
 ## How it works
 
@@ -52,10 +65,13 @@ Actions tab.
 
 1. On the phone: enable **Developer options → USB debugging**.
 2. Connect the phone to the TV with a data-capable USB cable.
-3. Open the app (it launches automatically on TV when the phone is attached), grant the
-   USB access prompt, then press **Connect**.
+3. Open the app from the **TV launcher** (it also launches automatically when the phone is
+   attached), grant the USB access prompt, then press **Connect**.
 4. Accept the RSA key prompt on the phone (first time only).
-5. Press **Open player** to view; `BACK` exits, `MENU` toggles the overlay.
+5. Press **Open player** to view; `MENU` toggles the overlay, `BACK` exits the player.
+
+> Note: sideloaded apps may be grouped under "See all apps" in some Google TV launchers;
+> they appear with the app banner. The app also auto-starts when a phone is attached.
 
 ## Project layout
 
@@ -71,4 +87,5 @@ app/src/main/java/com/scrcpy/android/
 
 ## License
 
-MIT — see [LICENSE](LICENSE). scrcpy itself is Apache-2.0 by Genymobile.
+MIT — see [LICENSE](LICENSE). scrcpy itself is Apache-2.0 by Genymobile; the bundled
+Roboto fonts are Apache-2.0 by Google.

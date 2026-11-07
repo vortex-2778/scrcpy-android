@@ -1,0 +1,4 @@
+Roboto static TTFs (Regular / Medium / Bold), bundled in res/font.
+
+Roboto is Copyright (c) Google, licensed under the Apache License, Version 2.0.
+Source: https://github.com/googlefonts/roboto-2 (src/hinted).
